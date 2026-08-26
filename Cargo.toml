@@ -19,25 +19,33 @@ include = ["/src", "/tests", "/examples", "LICENSE*"]
 
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = ["bevy_log"] }
-bevy_replicon = { version = "0.34", default-features = false }
-bevy_matchbox = "0.12"
+bevy = { version = "0.19", default-features = false, features = ["bevy_log"] }
+bevy_replicon = { version = "0.42", default-features = false }
+bevy_matchbox = { git = "https://github.com/AdamWhitehurst/matchbox/", rev = "593f900c4f27e94632a71232389d9e4ffaeb9bdf" }
 serde = { version = "1.0", features = ["serde_derive"] }
 bytes = "1.10"
 
 [dev-dependencies]
-bevy = { version = "0.16", default-features = false, features = [
+bevy = { version = "0.19", default-features = false, features = [
+  "bevy_core_pipeline",
   "bevy_gizmos",
+  "bevy_gizmos_render",
+  "bevy_render",
+  "bevy_sprite_render",
   "bevy_state",
   "bevy_text",
-  "bevy_ui_picking_backend",
   "bevy_ui",
+  "bevy_ui_render",
   "bevy_window",
+  "bevy_winit",
   "default_font",
   "serialize",
+  "ui_picking",
   "x11",
 ] }
-bevy_matchbox = { version = "0.12.0", features = ["signaling"] }
+bevy_matchbox = { git = "https://github.com/AdamWhitehurst/matchbox/", rev = "593f900c4f27e94632a71232389d9e4ffaeb9bdf", features = [
+  "signaling",
+] }
 test-log = "0.2"
 serde = "1.0"
 clap = { version = "4.1", features = ["derive"] }
@@ -53,10 +61,13 @@ signaling = ["bevy_matchbox/signaling"]
 name = "backend"
 required-features = ["server", "client"]
 
-[[example]]
-name = "simple_box"
-required-features = ["server", "client"]
-
-[[example]]
-name = "tic_tac_toe"
-required-features = ["server", "client"]
+# TODO(bevy-0.19 upgrade): examples are migrated in a follow-up PR (see
+# /Users/keng9/.claude/plans/i-want-to-upgrade-streamed-octopus.md). Re-enable
+# once examples/simple_box.rs and examples/tic_tac_toe.rs compile again.
+# [[example]]
+# name = "simple_box"
+# required-features = ["server", "client"]
+#
+# [[example]]
+# name = "tic_tac_toe"
+# required-features = ["server", "client"]
