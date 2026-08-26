@@ -16,6 +16,10 @@ keywords = [
 categories = ["game-development", "network-programming"]
 license = "MIT OR Apache-2.0"
 include = ["/src", "/tests", "/examples", "LICENSE*"]
+# examples/tic_tac_toe.rs is not yet migrated to Bevy 0.19 (see the
+# [[example]] TODO below); disable autodiscovery so Cargo doesn't try to
+# build it and only builds the explicitly declared examples.
+autoexamples = false
 
 
 [dependencies]
@@ -61,13 +65,13 @@ signaling = ["bevy_matchbox/signaling"]
 name = "backend"
 required-features = ["server", "client"]
 
-# TODO(bevy-0.19 upgrade): examples are migrated in a follow-up PR (see
-# /Users/keng9/.claude/plans/i-want-to-upgrade-streamed-octopus.md). Re-enable
-# once examples/simple_box.rs and examples/tic_tac_toe.rs compile again.
-# [[example]]
-# name = "simple_box"
-# required-features = ["server", "client"]
-#
+[[example]]
+name = "simple_box"
+required-features = ["server", "client"]
+
+# TODO(bevy-0.19 upgrade): tic_tac_toe.rs still targets the pre-0.19 API
+# (ClientEntityMap removal needs a client-prediction rewrite). Re-enable
+# once it's migrated.
 # [[example]]
 # name = "tic_tac_toe"
 # required-features = ["server", "client"]

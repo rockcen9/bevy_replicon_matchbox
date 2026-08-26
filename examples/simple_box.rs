@@ -15,11 +15,6 @@ use serde::{Deserialize, Serialize};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::net::{Ipv4Addr, SocketAddrV4};
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Event, Serialize)]
-struct ExampleEvent {
-    pub i: usize,
-}
-
 fn main() {
     let log_plugin = LogPlugin {
         level: Level::INFO,
@@ -41,7 +36,7 @@ fn main() {
         ))
         .replicate::<BoxPosition>()
         .replicate::<PlayerBox>()
-        .add_client_trigger::<MoveBox>(Channel::Ordered)
+        .add_client_event::<MoveBox>(Channel::Ordered)
         .add_observer(spawn_clients)
         .add_observer(despawn_clients)
         .add_observer(apply_movement)
@@ -59,7 +54,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>, channels: Res<RepliconChannel
                 PlayerBox {
                     color: GREEN.into(),
                 },
-                BoxOwner(SERVER),
+                BoxOwner(ClientId::Server),
             ));
         }
         Cli::Server { port } => {
@@ -72,7 +67,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>, channels: Res<RepliconChannel
             commands.spawn((
                 Text::new("Server"),
                 TextFont {
-                    font_size: 30.0,
+                    font_size: FontSize::Px(30.0),
                     ..Default::default()
                 },
                 TextColor::WHITE,
@@ -81,7 +76,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>, channels: Res<RepliconChannel
                 PlayerBox {
                     color: GREEN.into(),
                 },
-                BoxOwner(SERVER),
+                BoxOwner(ClientId::Server),
             ));
         }
         Cli::Client { port } => {
@@ -93,7 +88,7 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>, channels: Res<RepliconChannel
             commands.spawn((
                 Text("Client".to_string()),
                 TextFont {
-                    font_size: 30.0,
+                    font_size: FontSize::Px(30.0),
                     ..default()
                 },
                 TextColor::WHITE,
@@ -104,6 +99,9 @@ fn read_cli(mut commands: Commands, cli: Res<Cli>, channels: Res<RepliconChannel
     Ok(())
 }
 
+// `on_connection_request`'s `Err` variant is `matchbox_signaling`'s own
+// `http::Response` type; we don't control its size.
+#[allow(clippy::result_large_err)]
 fn start_signaling_server(commands: &mut Commands, port: u16) {
     info!("Starting signaling server on port {port}");
     let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
@@ -130,10 +128,10 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 /// Spawns a new box whenever a client connects.
-fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Commands) {
+fn spawn_clients(trigger: On<Add, ConnectedClient>, mut commands: Commands) {
     // Hash index to generate visually distinctive color.
     let mut hasher = DefaultHasher::new();
-    trigger.target().index().hash(&mut hasher);
+    trigger.entity.index().hash(&mut hasher);
     let hash = hasher.finish();
 
     // Use the lower 24 bits.
@@ -143,24 +141,24 @@ fn spawn_clients(trigger: Trigger<OnAdd, ConnectedClient>, mut commands: Command
     let b = (hash & 0xFF) as f32 / 255.0;
 
     // Generate pseudo random color from client entity.
-    info!("spawning box for `{}`", trigger.target());
+    info!("spawning box for `{}`", trigger.entity);
     commands.spawn((
         PlayerBox {
             color: Color::srgb(r, g, b),
         },
-        BoxOwner(trigger.target()),
+        BoxOwner(trigger.entity.into()),
     ));
 }
 
 /// Despawns a box whenever a client disconnects.
 fn despawn_clients(
-    trigger: Trigger<OnRemove, ConnectedClient>,
+    trigger: On<Remove, ConnectedClient>,
     mut commands: Commands,
     boxes: Query<(Entity, &BoxOwner)>,
 ) {
     let (entity, _) = boxes
         .iter()
-        .find(|&(_, owner)| **owner == trigger.target())
+        .find(|&(_, owner)| **owner == trigger.entity.into())
         .expect("all clients should have entities");
     commands.entity(entity).despawn();
 }
@@ -191,7 +189,7 @@ fn read_input(mut commands: Commands, input: Res<ButtonInput<KeyCode>>) {
 /// Fast-paced games usually you don't want to wait until server send a position back because of the latency.
 /// But this example just demonstrates simple replication concept.
 fn apply_movement(
-    trigger: Trigger<FromClient<MoveBox>>,
+    trigger: On<FromClient<MoveBox>>,
     time: Res<Time>,
     mut boxes: Query<(&BoxOwner, &mut BoxPosition)>,
 ) {
@@ -202,10 +200,10 @@ fn apply_movement(
     // but we didn't implement it for the sake of simplicity.
     let (_, mut position) = boxes
         .iter_mut()
-        .find(|&(owner, _)| **owner == trigger.client_entity)
-        .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client_entity));
+        .find(|&(owner, _)| **owner == trigger.client_id)
+        .unwrap_or_else(|| panic!("`{}` should be connected", trigger.client_id));
 
-    **position += *trigger.event * time.delta_secs() * MOVE_SPEED;
+    **position += trigger.message.0 * time.delta_secs() * MOVE_SPEED;
 }
 
 fn draw_boxes(mut gizmos: Gizmos, boxes: Query<(&BoxPosition, &PlayerBox)>) {
@@ -262,11 +260,11 @@ struct BoxPosition(Vec2);
 
 /// Identifies which player controls the box.
 ///
-/// Points to client entity. Used to apply movement to the correct box.
+/// Used to apply movement to the correct box.
 ///
 /// It's not replicated and present only on server or singleplayer.
 #[derive(Component, Clone, Copy, Deref)]
-struct BoxOwner(Entity);
+struct BoxOwner(ClientId);
 
 /// A movement event for the controlled box.
 #[derive(Deserialize, Deref, Event, Serialize)]
